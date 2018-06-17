@@ -1,0 +1,438 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminUsername": {
+            "type": "string",
+            "metadata": {
+                "description": "User name for the Virtual Machine."
+            }
+        },
+        "adminPassword": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Password for the Virtual Machine."
+            }
+        },
+        "vnetName": {
+            "type": "string"
+        },
+        "vnetAddressPrefix": {
+            "type": "string"
+        },
+        "subnetName": {
+            "type": "string"
+        },
+        "subnetAddressPrefix": {
+            "type": "string"
+        },
+        "extDnsPrefix": {
+            "type": "string"
+        },
+        "dcNamePrefix": {
+            "type": "string"
+        },
+        "dcVmSize": {
+            "type": "string"
+        },
+        "dcIp": {
+            "type": "string"
+        },
+        "domainName": {
+            "type": "string"
+        },
+        "DscUrlBase": {
+            "type": "string"
+        },
+        "joinedNamePrefix": {
+            "type": "string"
+        },
+        "joinedVmSize": {
+            "type": "string"
+        },
+        "standaloneNamePrefix": {
+            "type": "string"
+        },
+        "standaloneVmSize": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "subnetId": "[resourceId(resourceGroup().Name, 'Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('subnetName'))]",
+        "imagePublisher": "MicrosoftWindowsServer",
+        "imageOffer": "WindowsServer",
+        "imageSku": "2016-Datacenter",
+        "location": "[resourceGroup().location]",
+        "dcVmName": "[concat(parameters('dcNamePrefix'), '-vm')]",
+        "dcNicName": "[concat(parameters('dcNamePrefix'), '-nic')]",
+        "dcIpName": "[concat(parameters('dcNamePrefix'), '-ip')]",
+        "dcIpDns":"[concat(parameters('extDnsPrefix'), 'dc')]", 
+        "joinedVmName": "[concat(parameters('joinedNamePrefix'), '-vm')]",
+        "joinedNicName": "[concat(parameters('joinedNamePrefix'), '-nic')]",
+        "joinedIpName": "[concat(parameters('JoinedNamePrefix'), '-ip')]",
+        "joinedIpDns":"[concat(parameters('extDnsPrefix'), 'joined')]", 
+        "standaloneVmName": "[concat(parameters('standaloneNamePrefix'), '-vm')]",
+        "standaloneNicName": "[concat(parameters('standaloneNamePrefix'), '-nic')]",
+        "standaloneIpName": "[concat(parameters('standaloneNamePrefix'), '-ip')]",
+        "standaloneIpDns":"[concat(parameters('extDnsPrefix'), 'standalone')]", 
+        "domainDscUrl": "[concat(parameters('DscUrlBase'), 'setupAD.ps1.zip')]",
+        "joinedDscUrl": "[concat(parameters('DscUrlBase'), 'installJoinedNode.ps1.zip')]",
+        "standaloneDscUrl": "[concat(parameters('DscUrlBase'), 'installStandaloneNode.ps1.zip')]",
+        "domainConfigurationFunction": "setupAD.ps1\\setupAD",
+        "joinedConfigurationFunction": "installJoinedNode.ps1\\installJoinedNode",
+        "standaloneConfigurationFunction": "installStandaloneNode.ps1\\installStandaloneNode"
+    },
+    "resources": [
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[parameters('vnetName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[parameters('vnetAddressPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[parameters('subnetName')]",
+                        "properties": {
+                            "addressPrefix": "[parameters('subnetAddressPrefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2016-03-30",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('dcIpName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "dnsSettings": {
+                  "domainNameLabel": "[variables('dcIpDns')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2016-03-30",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('joinedIpName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                  "domainNameLabel": "[variables('joinedIpDns')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2016-03-30",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[variables('standaloneIpName')]",
+            "location": "[variables('location')]",
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                  "domainNameLabel": "[variables('standaloneIpDns')]"
+                }
+            }
+        },
+        {
+            "apiVersion": "2017-04-01",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('dcNicName')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses/', variables('dcIpName'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks/', parameters('vnetName'))]"
+            ],
+            "location": "[variables('location')]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Static",
+                            "privateIPAddress": "[parameters('dcIp')]",
+                            "subnet": {
+                                "id": "[variables('subnetId')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('dcIpName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2017-04-01",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('joinedNicName')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses/', variables('joinedIpName'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks/', parameters('vnetName'))]"
+            ],
+            "location": "[variables('location')]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('subnetId')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('joinedIpName'))]"
+                            }
+                        }
+                    }
+                ],
+                "dnsSettings": {
+                    "dnsServers": [
+                        "[parameters('dcIp')]"
+                    ]
+                }
+            }
+        },
+        {
+            "apiVersion": "2017-04-01",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[variables('standaloneNicName')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/publicIPAddresses/', variables('standaloneIpName'))]",
+                "[resourceId('Microsoft.Network/virtualNetworks/', parameters('vnetName'))]"
+            ],
+            "location": "[variables('location')]",
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[variables('subnetId')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('standaloneIpName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2017-03-30",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('dcVmName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces/', variables('dcNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('dcVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('dcVmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[variables('imageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('dcNicName'))]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "apiVersion": "2017-03-30",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('standaloneVmName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces/', variables('standaloneNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('standaloneVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('standaloneVmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[variables('imageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('standaloneNicName'))]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "apiVersion": "2017-03-30",
+            "type": "Microsoft.Compute/virtualMachines",
+            "name": "[variables('joinedVmName')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/networkInterfaces/', variables('joinedNicName'))]"
+            ],
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[parameters('joinedVmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[variables('joinedVmName')]",
+                    "adminUsername": "[parameters('adminUsername')]",
+                    "adminPassword": "[parameters('adminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('imagePublisher')]",
+                        "offer": "[variables('imageOffer')]",
+                        "sku": "[variables('imageSku')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('joinedNicName'))]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "[concat(variables('dcVmName'),'/', 'CreateADForest')]",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "apiVersion": "2016-03-30",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/', variables('dcVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Powershell",
+                "type": "DSC",
+                "typeHandlerVersion": "2.19",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "ModulesUrl": "[variables('domainDscUrl')]",
+                    "ConfigurationFunction": "[variables('domainConfigurationFunction')]",
+                    "Properties": {
+                        "DomainName": "[parameters('domainName')]",
+                        "AdminCreds": {
+                            "UserName": "[parameters('adminUsername')]",
+                            "Password": "PrivateSettingsRef:AdminPassword"
+                        }
+                    }
+                },
+                "protectedSettings": {
+                    "Items": {
+                        "AdminPassword": "[parameters('adminPassword')]"
+                    }
+                }
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "name": "[concat(variables('joinedVmName'),'/joindomain')]",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[concat('Microsoft.Compute/virtualMachines/', variables('joinedVmName'))]",
+                "[concat('Microsoft.Compute/virtualMachines/', variables('dcVmName'), '/extensions/CreateADForest')]"
+              ],
+            "properties": {
+                "publisher": "Microsoft.Compute",
+                "type": "JsonADDomainExtension",
+                "typeHandlerVersion": "1.3",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "Name": "[parameters('domainName')]",
+                    "OUPath": "",
+                    "User": "[concat(parameters('domainName'), '\\', parameters('adminUsername'))]",
+                    "Restart": "true",
+                    "Options": 3
+                },
+                "protectedSettings": {
+                    "Password": "[parameters('adminPassword')]"
+                }
+            }
+        },
+        {
+            "name": "[concat(variables('joinedVmName'),'/', 'installJoined')]",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "apiVersion": "2016-03-30",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/', variables('joinedVmName'))]",
+                "[concat('Microsoft.Compute/virtualMachines/', variables('joinedVmName'),'/extensions/joindomain')]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Powershell",
+                "type": "DSC",
+                "typeHandlerVersion": "2.19",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "ModulesUrl": "[variables('joinedDscUrl')]",
+                    "ConfigurationFunction": "[variables('joinedConfigurationFunction')]",
+                    "Properties": {}
+                    }
+                }
+        },
+        {
+            "name": "[concat(variables('standaloneVmName'),'/', 'installStandalone')]",
+            "type": "Microsoft.Compute/virtualMachines/extensions",
+            "apiVersion": "2016-03-30",
+            "location": "[variables('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Compute/virtualMachines/', variables('standaloneVmName'))]"
+            ],
+            "properties": {
+                "publisher": "Microsoft.Powershell",
+                "type": "DSC",
+                "typeHandlerVersion": "2.19",
+                "autoUpgradeMinorVersion": true,
+                "settings": {
+                    "ModulesUrl": "[variables('standaloneDscUrl')]",
+                    "ConfigurationFunction": "[variables('standaloneConfigurationFunction')]",
+                    "Properties": {}
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}

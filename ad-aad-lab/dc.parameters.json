@@ -1,0 +1,54 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "adminUsername": {
+      "value": "tomas"
+    },
+    "adminPassword": {
+      "value": "Azure12345678"
+    },
+    "vnetName": {
+      "value": "domain-net"
+    },
+    "vnetAddressPrefix": {
+      "value": "10.0.0.0/16"
+    },
+    "subnetName": {
+      "value": "domain-sub"
+    },
+    "subnetAddressPrefix": {
+      "value": "10.0.0.0/24"
+    },
+    "extDnsPrefix": {
+      "value": "mojeaaddemo"
+    },
+    "dcNamePrefix": {
+      "value": "dc"
+    },
+    "dcVmSize": {
+      "value": "Standard_B2s"
+    },
+    "dcIp": {
+      "value": "10.0.0.100"
+    },
+    "joinedNamePrefix": {
+      "value": "joined"
+    },
+    "joinedVmSize": {
+      "value": "Standard_B1ms"
+    },
+    "standaloneNamePrefix": {
+      "value": "standalone"
+    },
+    "standaloneVmSize": {
+      "value": "Standard_B1ms"
+    },
+    "domainName": {
+      "value": "tomaskubica.cz"
+    },
+    "DscUrlBase": {
+        "value": "https://tomaskubicadomain.blob.core.windows.net/windows-powershell-dsc/"
+    }
+  }
+}
